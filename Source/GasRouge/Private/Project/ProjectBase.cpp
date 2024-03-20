@@ -5,17 +5,26 @@
 
 #include "AbilitySystemComponent.h"
 #include "Component/RougeAbilitySystemComponent.h"
-#include "Component/ProjectileManagerComponent.h"
 #include "Abilities/GameplayAbility.h"
 #include "AbilitySystemGlobals.h"
+#include "Components/SphereComponent.h"
+#include "GameMode/CombatGameMode.h"
 #include "GameAbility/GA/DamageGameplayAbility.h"
-#include "Pawn/PawnBase.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 // Sets default values
 AProjectBase::AProjectBase()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	SphereComponent=CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
+	SetRootComponent(SphereComponent);
+
+	StaticMeshComponent=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
+	StaticMeshComponent->SetupAttachment(RootComponent);
+
+	SetHidden(true);
 
 }
 
@@ -30,68 +39,86 @@ void AProjectBase::BeginPlay()
 // Called every frame
 void AProjectBase::Tick(float DeltaTime)
 {
+	if(!bAlive)
+		return;
 	Super::Tick(DeltaTime);
 	TickLifeTime(DeltaTime);
 	TickMove(DeltaTime);
 }
 
-void AProjectBase::Initialize(UProjectileManagerComponent* _Owner, const TSharedPtr<FProjectileContext>& _ProjectileContext)
+void AProjectBase::Initialize(const AProjectBase* _ProjectBase,const TSharedPtr<FProjectileContext>& _ProjectileContext)
 {
 	CurrLifeTime=0.f;
 	bStartMove=false;
-	OwnerComponent = _Owner;
 	ProjectileContext = _ProjectileContext;
-	CurrLaunchCounts=MaxLaunchCounts;
-	CurrPenetrateCounts=MaxPenetrateCounts;
+	ProjectileBase=_ProjectBase->ProjectileBase;
+	SphereComponent->SetSphereRadius(_ProjectBase->SphereComponent->GetScaledSphereRadius());
+	StaticMeshComponent->SetStaticMesh(_ProjectBase->StaticMeshComponent->GetStaticMesh());
+	StaticMeshComponent->SetRelativeTransform(_ProjectBase->StaticMeshComponent->GetRelativeTransform());
+	SetActorTransform(ProjectileContext.Get()->SpawnTransform);
+	bAlive=true;
 }
 
 void AProjectBase::TickLifeTime(float& DeltaTime)
 {
 	CurrLifeTime+=DeltaTime;
- 	if(!bInfinityLifeTime)
+ 	if(!ProjectileBase.bInfinityLifeTime)
  	{
- 		if(CurrLifeTime>MaxLifeTime)
+ 		if(CurrLifeTime>ProjectileBase.MaxLifeTime)
  		{
- 			Destroy();
+ 			ProjectileEnd();
  		}
  	}
 }
 
 void AProjectBase::ProjectileEnd()
 {
-	Destroy();
+	bAlive=false;
+	ACombatGameMode* CombatGameMode=Cast<ACombatGameMode>(GetWorld()->GetAuthGameMode());
+
+	ProjectileContext.Reset();
+	if(CombatGameMode)
+	{
+		CombatGameMode->DestroyProjectile(this);
+	}
+	else
+	{
+		Destroy();
+	}
 }
 
 
 void AProjectBase::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* Other, UPrimitiveComponent* OtherComp,
                                   int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+	if(!bAlive)
+		return;
 	UAbilitySystemComponent* TargetAbilitySystem=UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Other);
 	if(TargetAbilitySystem)
 	{
 		if(!IsSameCamp(ProjectileContext.Get()->OwnerAbility.Get(),TargetAbilitySystem))
 		{
-			TryEffectArrayToTarget(TargetAbilitySystem,OverlopGameplayEffect);
+			TryEffectArrayToTarget(TargetAbilitySystem,ProjectileBase.OverlopGameplayEffect);
 
-			if(ProjectileContext!=nullptr&&ProjectileContext->GA.IsValid())
+			if(ProjectileContext!=nullptr&&ProjectileContext->GA)
 			{
-				if(UDamageGameplayAbility* DamageGameplayAbility=Cast<UDamageGameplayAbility>(ProjectileContext->GA.Get()))
+				if(UDamageGameplayAbility* DamageGameplayAbility=Cast<UDamageGameplayAbility>(ProjectileContext->GA))
 				{
-					DamageGameplayAbility->CauseDamage(Other,Damage);
+					DamageGameplayAbility->CauseDamage(Other,ProjectileBase.Damage);
 				}
 			}
 			
-			if(bCanPenetrate)
+			if(ProjectileBase.bCanPenetrate)
 			{
-				--CurrPenetrateCounts;
-				if(CurrPenetrateCounts<0)
+				--ProjectileBase.MaxPenetrateCounts;
+				if(ProjectileBase.MaxPenetrateCounts<0)
 				{
 					ProjectileEnd();
 					return;
 				}
 				else
 				{
-					TryEffectArrayToTarget(TargetAbilitySystem,PenetrateGameplayEffect);
+					TryEffectArrayToTarget(TargetAbilitySystem,ProjectileBase.PenetrateGameplayEffect);
 				}
 			}
 		}
@@ -106,6 +133,8 @@ void AProjectBase::OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* O
 void AProjectBase::OnEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
+	if(!bAlive)
+		return;
 }
 
 void AProjectBase::RegisterCollision(UPrimitiveComponent* InComponent)
@@ -121,12 +150,12 @@ void AProjectBase::RegisterCollision(UPrimitiveComponent* InComponent)
 
 void AProjectBase::TickMove(float& DeltaTime)
 {
-	if(CurrLifeTime<MoveDelay)
+	if(CurrLifeTime<ProjectileBase.MoveDelay)
 	{
 		return;
 	}
 	StartMove();
-	switch (MovementType)
+	switch (ProjectileBase.MovementType)
 	{
 	case EMovementType::JustMoveForward:
 		JustMoveForward(DeltaTime);
@@ -136,7 +165,7 @@ void AProjectBase::TickMove(float& DeltaTime)
 
 void AProjectBase::JustMoveForward(float& DeltaTime)
 {
-	FVector NewLocation=GetActorLocation()+GetActorForwardVector()*Speed*DeltaTime;
+	FVector NewLocation=GetActorLocation()+GetActorForwardVector()*ProjectileBase.Speed*DeltaTime;
 	SetActorLocation(NewLocation,true);
 }
 
@@ -149,7 +178,7 @@ void AProjectBase::TryEffectArrayToTarget(UAbilitySystemComponent* TargetAbility
 			FGameplayEffectContextHandle EffectContextHandle=TargetAbilitySystem->MakeEffectContext();
 			UAbilitySystemComponent* OwnerAbility=ProjectileContext->OwnerAbility.Get();
 			EffectContextHandle.AddSourceObject(OwnerAbility);
-			FGameplayEffectSpecHandle EffectSpecHandle=TargetAbilitySystem->MakeOutgoingSpec(Effective,Level,EffectContextHandle);
+			FGameplayEffectSpecHandle EffectSpecHandle=TargetAbilitySystem->MakeOutgoingSpec(Effective,ProjectileBase.Level,EffectContextHandle);
 			OwnerAbility->ApplyGameplayEffectSpecToTarget(*EffectSpecHandle.Data.Get(),TargetAbilitySystem);
 		}
 		
@@ -159,12 +188,12 @@ void AProjectBase::TryEffectArrayToTarget(UAbilitySystemComponent* TargetAbility
 
 void AProjectBase::LaunchCalculate(const AActor* OtherActor, const FHitResult& SweepResult)
 {
-	if(bCanLaunch)
+	if(ProjectileBase.bCanLaunch)
     	{
-    		if(!bCanInfinityLaunch)
+    		if(!ProjectileBase.bCanInfinityLaunch)
     		{
-    			--CurrLaunchCounts;
-    			if(CurrLaunchCounts<0)
+    			--ProjectileBase.MaxLaunchCounts;
+    			if(ProjectileBase.MaxLaunchCounts<0)
     			{
     				ProjectileEnd();
     				return;
@@ -190,7 +219,24 @@ void AProjectBase::StartMove()
 	}
 	bStartMove=true;
 
-	
+	if (!ProjectileContext.IsValid())
+	{
+		return;
+	}
+	const FProjectileContext* Context = ProjectileContext.Get();
+	switch (ProjectileBase.MovementType)
+	{
+	case EMovementType::JustMoveForward:
+		if (Context->TargetActor.IsValid())
+		{
+			FRotator DesiredRotation = (Context->TargetActor->GetActorLocation() - GetActorLocation()).ToOrientationRotator();
+			DesiredRotation.Pitch = 0.f;
+			SetActorRotation(DesiredRotation);
+		}
+		break;
+	default:
+		return;
+	}
 }
 
 bool AProjectBase::IsSameCamp(UAbilitySystemComponent* A, UAbilitySystemComponent* B)

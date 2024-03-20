@@ -6,6 +6,7 @@
 #include "GameAbility/GA/RougeGameplayAbility.h"
 #include "DamageGameplayAbility.generated.h"
 
+class AEnemyBase;
 /**
  * 
  */
@@ -13,10 +14,6 @@ UCLASS()
 class GASROUGE_API UDamageGameplayAbility : public URougeGameplayAbility
 {
 	GENERATED_BODY()
-
-private:
-	UPROPERTY(EditDefaultsOnly, Category=AbilityDamage)
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 public:
 	UFUNCTION(BlueprintCallable)

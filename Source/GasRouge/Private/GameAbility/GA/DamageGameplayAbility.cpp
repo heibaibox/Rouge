@@ -5,27 +5,41 @@
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
-#include "RougeGameplayTags.h"
-#include "GameAbility/AttributeSet/BaseAttributeSet.h"
+#include "Pawn/Enemy/EnemyBase.h"
 #include "GameAbility/AttributeSet/HealthAttributeSet.h"
+#include "GameAbility/GE/RougeGameplayEffect.h"
+#include "GameAbility/GE/Calculation/RougeDamageExecutionCalculation.h"
+
 
 void UDamageGameplayAbility::CauseDamage(AActor* TargetActor, float Value)
 {
-	if (DamageEffectClass == nullptr || TargetActor == nullptr || GetAbilitySystemComponentFromActorInfo() == nullptr)
+	if (TargetActor == nullptr || GetAbilitySystemComponentFromActorInfo() == nullptr)
 	{
 		return;
 	}
-	/*if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor))
+
+	URougeGameplayEffect* DamageEffective=NewObject<URougeGameplayEffect>(URougeGameplayEffect::StaticClass());
+	if(DamageEffective)
 	{
-		const FGameplayEffectSpecHandle DamageSpecHandle = MakeOutgoingGameplayEffectSpec(DamageEffectClass, 1.f);
-		FGameplayEffectSpec* Spec = DamageSpecHandle.Data.Get();
-		if (Spec)
-		{
-			FGameplayEffectContextHandle ContextHandle = Spec->GetContext();
-			FGameplayEffectContext* Context = ContextHandle.Get();
+		DamageEffective->DurationPolicy=EGameplayEffectDurationType::Instant;
+		DamageEffective->Modifiers.SetNum(1);
+		FGameplayModifierInfo& ModifierInfo = DamageEffective->Modifiers[0];
+		ModifierInfo.Attribute=UHealthAttributeSet::GetFinalDamageAttribute();
+		ModifierInfo.ModifierOp = EGameplayModOp::Additive;
+		ModifierInfo.ModifierMagnitude=FScalableFloat(Value);
+		DamageEffective->Executions.SetNum(1);
+		FGameplayEffectExecutionDefinition& ExecutionInfo = DamageEffective->Executions[0];
+		ExecutionInfo.CalculationClass=URougeDamageExecutionCalculation::StaticClass();
+
+		FGameplayEffectContext* Data=new FGameplayEffectContext;
+		Data->AddInstigator(GetActorInfo().OwnerActor.Get(),GetActorInfo().AvatarActor.Get());
+		Data->SetAbility(this);
 		
-		}
-		UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(DamageSpecHandle, UHealthAttributeSet::GetFinalDamageAttribute(), Value);
-		GetAbilitySystemComponentFromActorInfo()->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetASC);
-	}*/
+		FGameplayEffectContextHandle DataHandle=FGameplayEffectContextHandle(Data);
+		FGameplayEffectSpec GESpec = FGameplayEffectSpec(DamageEffective, DataHandle, 1.f);
+
+		
+		if(UAbilitySystemComponent* TargetASC=UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor))
+		GetAbilitySystemComponentFromActorInfo()->ApplyGameplayEffectSpecToTarget(GESpec,TargetASC);
+	}
 }

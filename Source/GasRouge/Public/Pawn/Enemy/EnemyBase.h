@@ -38,8 +38,12 @@ public:
 protected:
 	
 	virtual void BeginPlay() override;
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	
 private:
+	void OnHealthAttributeChanged(const FOnAttributeChangeData& Data);
+	
 	UFUNCTION(BlueprintCallable)
 	void RegisterCollision(UPrimitiveComponent* InComponent);
 

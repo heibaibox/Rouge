@@ -12,7 +12,6 @@
 class URougeAbilitySystemComponent;
 class UAbilitySystemComponent;
 class UFloatingPawnMovement;
-class UProjectileManagerComponent;
 class UPaperFlipbook;
 
 UCLASS()
@@ -53,9 +52,6 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PaperZD", meta = (AllowPrivateAccess = "true"))
 	UFloatingPawnMovement* PawnMovement;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PaperZD", meta = (AllowPrivateAccess = "true"))
-	UProjectileManagerComponent* ProjectileManagerComponent;
-
 	UPROPERTY(Category = Flipbook, EditDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	UPaperFlipbook* IdleFlipbook;
 
@@ -64,9 +60,9 @@ private:
 
 	EPawnMovementState MovementState=EPawnMovementState::Idle;
 
-private:
+protected:
 
-	void Initialize();
+	virtual void Initialize();
 
 public:
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category=Abilities)
@@ -79,9 +75,6 @@ public:
 	void Move(FVector2D& Direction);
 
 	void Rotate(FVector2D& Direction);
-
-	UFUNCTION(BlueprintCallable)
-	FORCEINLINE UProjectileManagerComponent* GetProjectileManagerComponent() {return ProjectileManagerComponent;}
 
 	//添加Ability
 	UFUNCTION(BlueprintCallable, Category = "Ability System")

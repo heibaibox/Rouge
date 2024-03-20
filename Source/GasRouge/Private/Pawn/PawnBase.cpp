@@ -6,7 +6,6 @@
 #include "AbilitySystemComponent.h"
 #include "PaperFlipbookComponent.h"
 #include "GameAbility/AttributeSet/BaseAttributeSet.h"
-#include "Component/ProjectileManagerComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/FloatingPawnMovement.h"
 
@@ -17,9 +16,8 @@ APawnBase::APawnBase()
 	PrimaryActorTick.bCanEverTick = true;
 
 	PawnMovement=CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("PawnMovement"));
-	ProjectileManagerComponent=CreateDefaultSubobject<UProjectileManagerComponent>(TEXT("ProjectileManagerComponent"));
 	RougeAbilitySystemComponent=CreateDefaultSubobject<URougeAbilitySystemComponent>(TEXT("RougeAbilitySystemComponent"));
-
+	
 	CapsuleComponent=CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComponent"));
 	SetRootComponent(CapsuleComponent);
 
@@ -82,11 +80,15 @@ void APawnBase::Initialize()
 	const UBaseAttributeSet* BaseAttributeSet = Cast<UBaseAttributeSet>(RougeAbilitySystemComponent->GetAttributeSet(UBaseAttributeSet::StaticClass()));
 	if(BaseAttributeSet)
 	{
+		this->Speed=BaseAttributeSet->GetSpeed();
+		this->PawnMovement->MaxSpeed=BaseAttributeSet->GetMaxSpeed();
 		RougeAbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UBaseAttributeSet::GetSpeedAttribute()).
 		AddLambda([&](const FOnAttributeChangeData& Data)->void{this->Speed=Data.NewValue;});
 		RougeAbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UBaseAttributeSet::GetMaxSpeedAttribute()).
 		AddLambda([&](const FOnAttributeChangeData& Data)->void{this->PawnMovement->MaxSpeed=Data.NewValue;});
 	}
+
+
 }
 
 UAbilitySystemComponent* APawnBase::GetAbilitySystemComponent() const

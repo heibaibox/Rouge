@@ -7,6 +7,10 @@
 #include "Abilities/GameplayAbility.h"
 #include "Component/RougeAbilitySystemComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "FunctionLibrary/RougeFunctionLibrary.h"
+#include "GameAbility/AttributeSet/HealthAttributeSet.h"
+#include "GameMode/CombatGameMode.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Pawn/Player/PlayerBase.h"
 
 void AEnemyBase::Tick(float DeltaSeconds)
@@ -29,6 +33,29 @@ void AEnemyBase::BeginPlay()
 	Super::BeginPlay();
 
 	RegisterCollision(Cast<UPrimitiveComponent>(GetRootComponent()));
+
+	Initialize();
+	GetRougeAbilitySystemComponent()->Camp=EPawnCamp::Enemy;
+	
+	URougeFunctionLibrary::GetCombatGameMode(GetWorld())->AddEnemyToArray(this);
+
+	if(RougeAbilitySystemComponent)
+	{
+		RougeAbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHealthAttributeSet::GetHealthAttribute())
+		.AddUObject(this, &AEnemyBase::OnHealthAttributeChanged);
+	}
+}
+
+void AEnemyBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	URougeFunctionLibrary::GetCombatGameMode(GetWorld())->RemoveEnemeyForArray(this);
+}
+
+void AEnemyBase::OnHealthAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	UKismetSystemLibrary::PrintString(GetWorld(),"Hit");
 }
 
 void AEnemyBase::RegisterCollision(UPrimitiveComponent* InComponent)

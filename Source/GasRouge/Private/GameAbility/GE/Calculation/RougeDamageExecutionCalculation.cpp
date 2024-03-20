@@ -23,13 +23,13 @@ float URougeDamageExecutionCalculation::CalculationDamageBase_Implementation(
 float URougeDamageExecutionCalculation::CalculationDamagePercent_Implementation(
 	const FGameplayEffectCustomExecutionParameters& ExecutionParameters, FRougeExcutionHelper& ExcutionHelper) const
 {
-	return 1;
+	return 1.f;
 }
 
 float URougeDamageExecutionCalculation::CalculationDefencePercent_Implementation(
 	const FGameplayEffectCustomExecutionParameters& ExecutionParameters, FRougeExcutionHelper& ExcutionHelper) const
 {
-	return 1;
+	return 1.f;
 }
 
 float URougeDamageExecutionCalculation::CalculationCriticalPercent_Implementation(
@@ -60,7 +60,7 @@ void URougeDamageExecutionCalculation::Execute_Implementation(
 	URougeAbilitySystemComponent* SourceASC=Cast<URougeAbilitySystemComponent>(ExecutionParams.GetSourceAbilitySystemComponent());
 	URougeAbilitySystemComponent* TargetASC=Cast<URougeAbilitySystemComponent>(ExecutionParams.GetTargetAbilitySystemComponent());
 
-	if(!IsValid(SourceASC)||IsValid(TargetASC)) return;
+	if(!IsValid(SourceASC)||!IsValid(TargetASC)) return;
 
 	const UBaseAttributeSet* SourceAttributeSet=SourceASC->GetSet<UBaseAttributeSet>();
 	const UBaseAttributeSet* TargetAttributeSet=TargetASC->GetSet<UBaseAttributeSet>();
@@ -68,29 +68,34 @@ void URougeDamageExecutionCalculation::Execute_Implementation(
 
 	const URougeGameplayAbility* SourceAbility=Cast<URougeGameplayAbility>(Spec->GetContext().GetAbilityInstance_NotReplicated());
 
-	FRougeExcutionHelper ExcutionHelper;
-	ExcutionHelper.SourceASC=SourceASC;
-	ExcutionHelper.TargetASC=TargetASC;
-	ExcutionHelper.SourceAS=SourceAttributeSet;
-	ExcutionHelper.TargetAS=TargetAttributeSet;
-	ExcutionHelper.SourceGA=SourceAbility;
-	ExcutionHelper.Spec=Spec;
+	FRougeExcutionHelper ExecutionHelper;
+	ExecutionHelper.SourceASC=SourceASC;
+	ExecutionHelper.TargetASC=TargetASC;
+	ExecutionHelper.SourceAS=SourceAttributeSet;
+	ExecutionHelper.TargetAS=TargetAttributeSet;
+	ExecutionHelper.SourceGA=SourceAbility;
+	ExecutionHelper.Spec=Spec;
 
+	FGameplayEffectSpecHandle SpecHandle=FGameplayEffectSpecHandle(Spec);
+	
+	URougeAbilitySystemComponent::TryApplyGameplayEffectAdjustment(ExecutionHelper.AdjustmentData, SpecHandle, SourceASC, TargetASC);
 
 	//基础伤害
-	float DamageBase=CalculationDamageBase(ExecutionParams,ExcutionHelper);
+	float DamageBase=CalculationDamageBase(ExecutionParams,ExecutionHelper);
 
 	//伤害倍率
-	float DamagePercent=CalculationDamagePercent(ExecutionParams,ExcutionHelper);
+	float DamagePercent=CalculationDamagePercent(ExecutionParams,ExecutionHelper);
 
 	//减伤伤害
-	float DefencePercent=CalculationDefencePercent(ExecutionParams,ExcutionHelper);
+	float DefencePercent=CalculationDefencePercent(ExecutionParams,ExecutionHelper);
 
 	//暴击伤害
-	float CriticalPercent=CalculationCriticalPercent(ExecutionParams,ExcutionHelper);
+	float CriticalPercent=CalculationCriticalPercent(ExecutionParams,ExecutionHelper);
 
 	float Damage=DamageBase*DamagePercent*DefencePercent*CriticalPercent;
 
+	Damage*=ExecutionHelper.AdjustmentData.RateValue;
+	Damage+=ExecutionHelper.AdjustmentData.ExtraValue;
 	if(Damage>0.f)
 	{
 		OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(UHealthAttributeSet::GetFinalDamageAttribute(),EGameplayModOp::Override,Damage));

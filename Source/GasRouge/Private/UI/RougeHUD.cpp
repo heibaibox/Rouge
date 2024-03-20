@@ -19,8 +19,16 @@ void ARougeHUD::BeginPlay()
 
 void ARougeHUD::OnHealthChanged(float Health)
 {
+	if(PlayerHealthWidget)
+	{
+		PlayerHealthWidget->OnHealthChanged(Health);
+	}
 }
 
 void ARougeHUD::OnMaxHealthChanged(float MaxHealth)
 {
+	if(PlayerHealthWidget)
+	{
+		PlayerHealthWidget->OnMaxHealthChanged(MaxHealth);
+	}
 }

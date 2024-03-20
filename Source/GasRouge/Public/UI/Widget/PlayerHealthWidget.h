@@ -15,7 +15,7 @@ class GASROUGE_API UPlayerHealthWidget : public UUserWidget
 	GENERATED_BODY()
 
 
-protected:
+public:
 	UFUNCTION(BlueprintImplementableEvent,BlueprintCallable)
 	void OnHealthChanged(float Health);
 
